@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Al-Qimma Clash | متجر القمة كلاش</title>
+    <meta name="description" content="Al-Qimma Clash - المنصة المعتمدة لتداول وشراء حسابات كلاش أوف كلانس الموثقة بالعملات الرسمية والوساطة الآمنة." />
+    <meta property="og:title" content="Al-Qimma Clash | متجر القمة كلاش" />
+    <meta property="og:description" content="Al-Qimma Clash - المنصة المعتمدة لتداول وشراء حسابات كلاش أوف كلانس الموثقة بالعملات الرسمية والوساطة الآمنة." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    <style>
+      /* Aggressively hide and suppress any platform banner, badge, or AI Studio watermark */
+      #ai-studio-badge,
+      .ai-studio-badge,
+      [id*="ai-studio"],
+      [class*="ai-studio"],
+      [id*="aistudio"],
+      [class*="aistudio"],
+      [aria-label*="AI Studio"],
+      [title*="AI Studio"],
+      .ais-badge,
+      #ais-badge,
+      .google-branding,
+      div[style*="z-index: 99999"],
+      div[style*="z-index: 2147483647"] {
+        display: none !important;
+        visibility: hidden !important;
+        opacity: 0 !important;
+        pointer-events: none !important;
+        height: 0 !important;
+        width: 0 !important;
+        overflow: hidden !important;
+      }
+    </style>
+    <script>
+      (function purgeAIStudioBranding() {
+        const removeWatermarks = () => {
+          try {
+            const allElements = document.querySelectorAll('body > *:not(#root), #root div, [class*="badge"], [class*="banner"], [class*="modal"]');
+            allElements.forEach((el) => {
+              if (el.id === 'root') return;
+              const text = (el.textContent || el.innerText || '').toLowerCase();
+              if (
+                text.includes('اي اي استوديو') ||
+                text.includes('ai studio') ||
+                text.includes('تم صنع التطبيق') ||
+                text.includes('built with ai') ||
+                text.includes('built with google')
+              ) {
+                if (!el.closest('#catalog-section') && !el.closest('form')) {
+                  el.style.display = 'none';
+                  el.remove();
+                }
+              }
+            });
+          } catch (e) {
+            // silent fail
+          }
+        };
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', removeWatermarks);
+        } else {
+          removeWatermarks();
+        }
+
+        const observer = new MutationObserver(removeWatermarks);
+        observer.observe(document.documentElement, { childList: true, subtree: true });
+      })();
+    </script>
+  </head>
+  <body class="bg-[#f8f6f2] text-stone-900 antialiased selection:bg-amber-400 selection:text-stone-900">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

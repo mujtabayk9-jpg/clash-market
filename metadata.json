@@ -1,0 +1,6 @@
+{
+  "name": "سوق كلاش - Clash Market",
+  "description": "المنصة الموثوقة لبيع وشراء حسابات كلاش أوف كلانس مع فحص تفصيلي للقرى وضمان الوساطة المالية.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

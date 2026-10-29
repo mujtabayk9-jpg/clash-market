@@ -1,0 +1,45 @@
+@import "tailwindcss";
+
+@layer base {
+  body {
+    font-family: 'Tajawal', 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    background-color: #f8f6f2;
+    color: #1c1917;
+  }
+}
+
+/* Warm Off-White scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #f1ede4;
+}
+::-webkit-scrollbar-thumb {
+  background: #d6cebf;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b8ad9b;
+}
+
+/* Hide any AI Studio or platform badges and watermarks */
+#ai-studio-badge,
+.ai-studio-badge,
+[id*="ai-studio"],
+[class*="ai-studio"],
+[id*="aistudio"],
+[class*="aistudio"],
+[aria-label*="AI Studio"],
+[title*="AI Studio"],
+.ais-badge,
+#ais-badge,
+div[style*="z-index: 99999"],
+div[style*="z-index: 2147483647"] {
+  display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
