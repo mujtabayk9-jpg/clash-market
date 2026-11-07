@@ -6,14 +6,14 @@ export const INITIAL_INVESTMENT_SHARES: InvestmentShare[] = [
     title: 'سهم صندوق سيولة الوساطة',
     symbol: 'QIMMA',
     badge: 'الأكثر أماناً واستقراراً',
-    description: 'يستثمر في تمويل وتأمين صفقات الوساطة اليومية لمتجر Al-Qimma Clash، ويوزع حصة مباشرة من رسوم توثيق الحسابات.',
+    description: 'نموذج تجريبي لعرض صندوق سيولة الوساطة. لا يمثل استثماراً أو عائداً مالياً حقيقياً.',
     sharePriceCoins: 250,
     previousPriceCoins: 235,
     dividendRatePercent: 6.5,
-    dividendPeriodLabel: 'أرباح أسبوعية دورية',
+    dividendPeriodLabel: 'تقديري تجريبي',
     availableShares: 4200,
     totalShares: 10000,
-    backedBy: 'رسوم وساطة مبيعات القرى المعتمدة وتأمينات الحسابات',
+    backedBy: 'بيانات تجريبية غير مرتبطة بأصول أو ضمانات حقيقية',
     riskRating: 'آمن وساطة 100%',
     priceHistory: [
       { date: '1 أكتوبر', price: 210, volume: 320 },
@@ -29,14 +29,14 @@ export const INITIAL_INVESTMENT_SHARES: InvestmentShare[] = [
     title: 'سهم مزادات النخبة وتاون 17',
     symbol: 'CHAMP',
     badge: 'نمو سريع وعائد مرتفع',
-    description: 'صندوق مخصص للاستثمار في مزادات قرى تاون 17 و 16 ماكس النادرة، يجني أرباحه من فارق سومات المزايدات وسرعة دوران البيع.',
+    description: 'بيانات عرض تجريبية فقط؛ لا توجد أرباح أو استثمارات فعلية.',
     sharePriceCoins: 600,
     previousPriceCoins: 540,
     dividendRatePercent: 10.2,
-    dividendPeriodLabel: 'أرباح نصف شهرية',
+    dividendPeriodLabel: 'تقديري تجريبي',
     availableShares: 1850,
     totalShares: 5000,
-    backedBy: 'سومات مزادات كلاش العلنية وقرى النخبة الحصرية',
+    backedBy: 'بيانات تجريبية غير مرتبطة بأصول أو ضمانات حقيقية',
     riskRating: 'نمو متوازن',
     priceHistory: [
       { date: '1 أكتوبر', price: 470, volume: 150 },
@@ -52,14 +52,14 @@ export const INITIAL_INVESTMENT_SHARES: InvestmentShare[] = [
     title: 'سهم الأساطير والقرى النادرة',
     symbol: 'LEGEND',
     badge: 'أعلى عائد استثماري',
-    description: 'يستهدف قرى كؤوس الأساطير التاريخية (5800+ كأس) والحسابات المزودة بأقوى العتاد والجلود الحصرية، بعوائد استثنائية للمستثمر.',
+    description: 'بيانات عرض تجريبية فقط؛ لا توجد أرباح أو استثمارات فعلية.',
     sharePriceCoins: 1500,
     previousPriceCoins: 1320,
     dividendRatePercent: 14.8,
-    dividendPeriodLabel: 'أرباح شهرية تراكمية',
+    dividendPeriodLabel: 'تقديري تجريبي',
     availableShares: 620,
     totalShares: 2000,
-    backedBy: 'الحسابات العالمية المصنفة وعتاد الأبطال الماكس النادر',
+    backedBy: 'بيانات تجريبية غير مرتبطة بأصول أو ضمانات حقيقية',
     riskRating: 'أرباح مرتفعة',
     priceHistory: [
       { date: '1 أكتوبر', price: 1150, volume: 80 },
@@ -72,34 +72,6 @@ export const INITIAL_INVESTMENT_SHARES: InvestmentShare[] = [
   },
 ];
 
-export const INITIAL_USER_HOLDINGS: UserShareHolding[] = [
-  {
-    shareId: 'share-qimma-escrow',
-    sharesCount: 2,
-    averageBuyPrice: 240,
-    totalInvested: 480,
-    unclaimedDividends: 32,
-    lastClaimTimestamp: 'منذ يومين',
-  },
-];
-
-export const INITIAL_TRANSACTIONS: ShareOrderTransaction[] = [
-  {
-    id: 'tx-inv-1',
-    type: 'buy',
-    shareId: 'share-qimma-escrow',
-    shareTitle: 'سهم صندوق سيولة الوساطة (QIMMA)',
-    shares: 2,
-    amountCoins: 480,
-    timestamp: '2026-11-04 14:20',
-  },
-  {
-    id: 'tx-inv-2',
-    type: 'dividend_claim',
-    shareId: 'share-qimma-escrow',
-    shareTitle: 'أرباح دورية - صندوق سيولة الوساطة',
-    shares: 2,
-    amountCoins: 16,
-    timestamp: '2026-11-05 10:00',
-  },
-];
+// Do not give every new visitor seeded ownership or claimable demo dividends.
+export const INITIAL_USER_HOLDINGS: UserShareHolding[] = [];
+export const INITIAL_TRANSACTIONS: ShareOrderTransaction[] = [];
