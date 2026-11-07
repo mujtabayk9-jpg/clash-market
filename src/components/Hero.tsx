@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, ShieldCheck, CheckCircle2, Zap, ArrowLeft, Coins } from 'lucide-react';
+import { Search, ShieldCheck, CheckCircle2, Zap, ArrowLeft, Coins, TrendingUp, Building2 } from 'lucide-react';
 import heroImg from '../assets/images/hero_clash_marketplace_1792906935926.jpg';
 
 interface HeroProps {
@@ -10,6 +10,8 @@ interface HeroProps {
   onExploreClick: () => void;
   onOpenCalculator: () => void;
   onOpenWallet: () => void;
+  onOpenTrends?: () => void;
+  onOpenInvest?: () => void;
 }
 
 export const Hero: React.FC<HeroProps> = ({
@@ -20,6 +22,8 @@ export const Hero: React.FC<HeroProps> = ({
   onExploreClick,
   onOpenCalculator,
   onOpenWallet,
+  onOpenTrends,
+  onOpenInvest,
 }) => {
   return (
     <div className="relative overflow-hidden border-b border-stone-200 bg-[#f4f0e8]">
@@ -105,6 +109,24 @@ export const Hero: React.FC<HeroProps> = ({
             >
               حاسبة التثمين
             </button>
+            {onOpenTrends && (
+              <button
+                onClick={onOpenTrends}
+                className="px-3 py-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+              >
+                <TrendingUp className="w-3.5 h-3.5 text-amber-700" />
+                <span>مؤشر الأسعار (30 يوماً) 📈</span>
+              </button>
+            )}
+            {onOpenInvest && (
+              <button
+                onClick={onOpenInvest}
+                className="px-3 py-1 rounded-md bg-emerald-50 hover:bg-emerald-100 text-emerald-900 border border-emerald-300 font-bold transition-colors cursor-pointer flex items-center gap-1 shadow-xs"
+              >
+                <Building2 className="w-3.5 h-3.5 text-emerald-700" />
+                <span>صندوق استثمار الأسهم 🏛️</span>
+              </button>
+            )}
             <button
               onClick={onOpenWallet}
               className="px-3 py-1 rounded-md bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-300 font-bold transition-colors cursor-pointer flex items-center gap-1"

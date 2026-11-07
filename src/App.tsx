@@ -6,12 +6,15 @@ import {
   CheckCircle2,
   Swords,
   CreditCard,
-  Gavel
+  Gavel,
+  TrendingUp,
+  Building2
 } from 'lucide-react';
 
-import { AccountListing, UserDigitalCard, AuctionListing } from './types/clash';
+import { AccountListing, UserDigitalCard, AuctionListing, InvestmentShare, UserShareHolding, ShareOrderTransaction } from './types/clash';
 import { INITIAL_ACCOUNTS } from './data/mockAccounts';
 import { getInitialMockAuctions } from './data/mockAuctions';
+import { INITIAL_INVESTMENT_SHARES, INITIAL_USER_HOLDINGS, INITIAL_TRANSACTIONS } from './data/mockInvestments';
 import { Navbar } from './components/Navbar';
 import { Hero } from './components/Hero';
 import { AccountCard } from './components/AccountCard';
@@ -31,7 +34,10 @@ import { DigitalIdCardModal } from './components/DigitalIdCardModal';
 import { AdminRechargeModal } from './components/AdminRechargeModal';
 import { AuctionsView } from './components/AuctionsView';
 import { PlaceBidModal } from './components/PlaceBidModal';
-import { registerClientIfNew, setCardBalance, normalizeCardId } from './utils/balanceManager';
+import { MarketTrendsView } from './components/MarketTrendsView';
+import { MarketTrendsModal } from './components/MarketTrendsModal';
+import { InvestmentSharesView } from './components/InvestmentSharesView';
+import { registerClientIfNew, setCardBalance, normalizeCardId, getCardBalance, updateClientInfo } from './utils/balanceManager';
 
 export default function App() {
   // Permanent Lifelong User Digital ID Card (Generated automatically on first visit)
@@ -71,6 +77,17 @@ export default function App() {
     const bal = registerClientIfNew(newCard.cardId, newCard.memberName);
     setWalletBalance(bal);
     showToast(`تم التبديل بنجاح إلى البطاقة: ${newCard.cardId} (${newCard.memberName})`);
+  };
+
+  const handleUpdateUserCard = (updated: UserDigitalCard) => {
+    setUserCard(updated);
+    try {
+      localStorage.setItem('clash_user_id_card', JSON.stringify(updated));
+    } catch (e) {
+      console.error(e);
+    }
+    updateClientInfo(updated.cardId, updated.memberName);
+    showToast(`✨ تم ترقية وتحديث بيانات بطاقتك بنجاح! (${updated.memberName})`);
   };
 
   // Admin WhatsApp Number for Direct Recharging
@@ -124,6 +141,37 @@ export default function App() {
     return registerClientIfNew(userCard.cardId, userCard.memberName);
   });
 
+  // Investment Shares & Investor Portfolios
+  const [investmentShares, setInvestmentShares] = useState<InvestmentShare[]>(() => {
+    try {
+      const saved = localStorage.getItem('clash_investment_shares');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_INVESTMENT_SHARES;
+  });
+
+  const [userHoldings, setUserHoldings] = useState<UserShareHolding[]>(() => {
+    try {
+      const saved = localStorage.getItem('clash_user_share_holdings');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_USER_HOLDINGS;
+  });
+
+  const [shareTransactions, setShareTransactions] = useState<ShareOrderTransaction[]>(() => {
+    try {
+      const saved = localStorage.getItem('clash_share_transactions');
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return INITIAL_TRANSACTIONS;
+  });
+
   // Admin Mode state (Unlocked by typing 091909)
   const [isAdminUnlocked, setIsAdminUnlocked] = useState(false);
   const [isAdminAddVillageOpen, setIsAdminAddVillageOpen] = useState(false);
@@ -163,6 +211,7 @@ export default function App() {
   const [isMyOrdersOpen, setIsMyOrdersOpen] = useState(false);
   const [isIdCardModalOpen, setIsIdCardModalOpen] = useState(false);
   const [isAdminRechargeOpen, setIsAdminRechargeOpen] = useState(false);
+  const [isTrendsModalOpen, setIsTrendsModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -170,7 +219,7 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  // Real-time synchronization of wallet balance when recharged by admin
+  // Real-time synchronization of wallet balance when recharged by admin or transferred
   useEffect(() => {
     const handleBalanceEvent = (e: any) => {
       const { cardId, newBalance, amountAdded } = e.detail || {};
@@ -178,6 +227,8 @@ export default function App() {
         setWalletBalance(newBalance);
         if (amountAdded > 0) {
           showToast(`⚡ تم استلام +${amountAdded.toLocaleString()} عملة في بطاقتك بنجاح! الرصيد المتاح: ${newBalance.toLocaleString()} عملة`);
+        } else if (amountAdded < 0) {
+          showToast(`💸 تم خصم وتحويل ${Math.abs(amountAdded).toLocaleString()} عملة من بطاقتك. الرصيد المتبقي: ${newBalance.toLocaleString()} عملة`);
         }
       }
     };
@@ -236,6 +287,30 @@ export default function App() {
       console.error(e);
     }
   }, [walletBalance]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('clash_investment_shares', JSON.stringify(investmentShares));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [investmentShares]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('clash_user_share_holdings', JSON.stringify(userHoldings));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [userHoldings]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('clash_share_transactions', JSON.stringify(shareTransactions));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [shareTransactions]);
 
   const handleToggleFavorite = (id: string) => {
     setFavorites((prev) => {
@@ -298,20 +373,16 @@ export default function App() {
   };
 
   const handleAdminAddCoins = (amount: number, note?: string) => {
-    setWalletBalance((prev) => {
-      const updated = prev + amount;
-      setCardBalance(userCard.cardId, updated, userCard.memberName);
-      return updated;
-    });
-    showToast(`⚡ تم شحن ${amount.toLocaleString()} عملة بنجاح! الرصيد متاح فوراً للشراء.`);
+    const freshBalance = getCardBalance(userCard.cardId);
+    setWalletBalance(freshBalance);
+    showToast(`⚡ تم شحن +${amount.toLocaleString()} عملة بنجاح! الرصيد المتاح: ${freshBalance.toLocaleString()} عملة.`);
   };
 
   const handleDeductWallet = (coinsToDeduct: number) => {
-    setWalletBalance((prev) => {
-      const updated = Math.max(0, prev - coinsToDeduct);
-      setCardBalance(userCard.cardId, updated, userCard.memberName);
-      return updated;
-    });
+    const current = getCardBalance(userCard.cardId);
+    const updated = Math.max(0, current - coinsToDeduct);
+    setCardBalance(userCard.cardId, updated, userCard.memberName);
+    setWalletBalance(updated);
   };
 
   // Live Auction Bidding Handler
@@ -388,6 +459,152 @@ export default function App() {
     showToast('🔨 تم إطلاق المزاد العلني للقرية بنجاح! يمكن للعملاء الآن المزايدة عليها.');
   };
 
+  // Investment Shares Handlers
+  const handleBuyShares = (shareId: string, sharesCount: number, totalCostCoins: number) => {
+    if (walletBalance < totalCostCoins) {
+      showToast('⚠️ رصيدك الحالي من العملات غير كافٍ للاكتتاب. يرجى شحن البطاقة أولاً عبر المشرف.');
+      setIsIdCardModalOpen(true);
+      return;
+    }
+
+    // Deduct coins from user wallet
+    handleDeductWallet(totalCostCoins);
+
+    const targetShare = investmentShares.find((s) => s.id === shareId);
+    if (!targetShare) return;
+
+    // Deduct from available shares in the pool
+    setInvestmentShares((prev) =>
+      prev.map((s) => (s.id === shareId ? { ...s, availableShares: Math.max(0, s.availableShares - sharesCount) } : s))
+    );
+
+    // Update or create user share holding
+    setUserHoldings((prev) => {
+      const existing = prev.find((h) => h.shareId === shareId);
+      if (existing) {
+        const newCount = existing.sharesCount + sharesCount;
+        const newTotalInvested = existing.totalInvested + totalCostCoins;
+        const newAvg = Math.round(newTotalInvested / newCount);
+        return prev.map((h) =>
+          h.shareId === shareId
+            ? { ...h, sharesCount: newCount, totalInvested: newTotalInvested, averageBuyPrice: newAvg }
+            : h
+        );
+      } else {
+        return [
+          ...prev,
+          {
+            shareId,
+            sharesCount,
+            averageBuyPrice: targetShare.sharePriceCoins,
+            totalInvested: totalCostCoins,
+            unclaimedDividends: Math.round(totalCostCoins * 0.025), // immediate welcome dividend accrued
+            lastClaimTimestamp: 'الآن',
+          },
+        ];
+      }
+    });
+
+    // Record investor transaction
+    const newTx: ShareOrderTransaction = {
+      id: `tx-inv-${Date.now()}`,
+      type: 'buy',
+      shareId,
+      shareTitle: `${targetShare.title} (${targetShare.symbol})`,
+      shares: sharesCount,
+      amountCoins: totalCostCoins,
+      timestamp: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
+    };
+    setShareTransactions((prev) => [newTx, ...prev]);
+
+    showToast(`🏛️ تهانينا! تم شراء واكتتاب ${sharesCount} سهم في ${targetShare.symbol} بنجاح. أصبحت مستثمراً رسمياً في متجر القمة!`);
+  };
+
+  const handleSellShares = (shareId: string, sharesCount: number, totalReturnCoins: number) => {
+    const targetShare = investmentShares.find((s) => s.id === shareId);
+    if (!targetShare) return;
+
+    // Credit coins back to user wallet
+    const currentBal = getCardBalance(userCard.cardId);
+    const freshBal = currentBal + totalReturnCoins;
+    setCardBalance(userCard.cardId, freshBal, userCard.memberName);
+    setWalletBalance(freshBal);
+
+    // Return shares to the available pool
+    setInvestmentShares((prev) =>
+      prev.map((s) => (s.id === shareId ? { ...s, availableShares: s.availableShares + sharesCount } : s))
+    );
+
+    // Update user holdings
+    setUserHoldings((prev) =>
+      prev
+        .map((h) => {
+          if (h.shareId !== shareId) return h;
+          const remaining = Math.max(0, h.sharesCount - sharesCount);
+          const ratio = remaining / (h.sharesCount || 1);
+          return {
+            ...h,
+            sharesCount: remaining,
+            totalInvested: Math.round(h.totalInvested * ratio),
+          };
+        })
+        .filter((h) => h.sharesCount > 0)
+    );
+
+    // Record investor transaction
+    const newTx: ShareOrderTransaction = {
+      id: `tx-inv-${Date.now()}`,
+      type: 'sell',
+      shareId,
+      shareTitle: `${targetShare.title} (${targetShare.symbol})`,
+      shares: sharesCount,
+      amountCoins: totalReturnCoins,
+      timestamp: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
+    };
+    setShareTransactions((prev) => [newTx, ...prev]);
+
+    showToast(`💸 تم تسييل ${sharesCount} سهم واسترداد +${totalReturnCoins.toLocaleString()} عملة إلى بطاقتك بنجاح!`);
+  };
+
+  const handleClaimDividends = (shareId?: string) => {
+    let claimTotal = 0;
+
+    setUserHoldings((prev) =>
+      prev.map((h) => {
+        if (!shareId || h.shareId === shareId) {
+          claimTotal += h.unclaimedDividends;
+          return { ...h, unclaimedDividends: 0, lastClaimTimestamp: 'الآن' };
+        }
+        return h;
+      })
+    );
+
+    if (claimTotal <= 0) {
+      showToast('لا توجد أرباح أسهم جديدة قابلة للجني حالياً.');
+      return;
+    }
+
+    // Add claimTotal to wallet balance
+    const currentBal = getCardBalance(userCard.cardId);
+    const freshBal = currentBal + claimTotal;
+    setCardBalance(userCard.cardId, freshBal, userCard.memberName);
+    setWalletBalance(freshBal);
+
+    const targetShare = shareId ? investmentShares.find((s) => s.id === shareId) : null;
+    const newTx: ShareOrderTransaction = {
+      id: `tx-inv-${Date.now()}`,
+      type: 'dividend_claim',
+      shareId: shareId || 'all',
+      shareTitle: targetShare ? `أرباح ${targetShare.symbol}` : 'توزيعات أرباح المحفظة الاستثمارية',
+      shares: 0,
+      amountCoins: claimTotal,
+      timestamp: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
+    };
+    setShareTransactions((prev) => [newTx, ...prev]);
+
+    showToast(`💰 مبروك! تم جني +${claimTotal.toLocaleString()} عملة من أرباح الأسهم وإيداعها في بطاقتك بنجاح!`);
+  };
+
 
   // Filtered & Sorted Accounts
   const filteredAccounts = useMemo(() => {
@@ -448,17 +665,21 @@ export default function App() {
         onOpenBaseLayouts={() => setIsBaseLayoutsOpen(true)}
         onOpenMyOrders={() => setIsMyOrdersOpen(true)}
         onOpenIdCardModal={() => setIsIdCardModalOpen(true)}
+        onOpenTrendsModal={() => setIsTrendsModalOpen(true)}
       />
 
       {/* Permanent Automatic Digital ID Card Notification Banner */}
       <div className="bg-gradient-to-r from-amber-500/10 via-amber-100/50 to-orange-500/10 border-b border-amber-200/70 py-2.5 px-4 text-xs">
         <div className="max-w-7xl mx-auto flex items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-md bg-stone-900 text-amber-300 font-mono font-bold text-xs shadow-xs border border-amber-400/30">
-              🪪 {userCard.cardId}
+            <span className="px-2.5 py-1 rounded-md bg-stone-900 text-amber-300 font-mono font-bold text-xs shadow-xs border border-amber-400/30 flex items-center gap-1.5">
+              <span>🪪</span>
+              <span>{userCard.cardId}</span>
+              <span className="text-stone-400">·</span>
+              <span className="text-white font-sans">{userCard.memberName}</span>
             </span>
             <span className="text-stone-700 hidden sm:inline font-medium">
-              بطاقتك التعريفية الدائمة جاهزة! يتم شحن العملات حصراً عن طريق المشرف عبر الواتساب باستخدام رقم بطاقتك.
+              {userCard.warriorTitle ? `${userCard.warriorTitle} · ` : ''}هويتك موثقة بالختم الرسمي 𒀱 𒅒 𒈓 𒀰 ويتم شحن الرصيد حصراً بواسطة المشرف عبر الواتساب.
             </span>
           </div>
           <button
@@ -484,6 +705,8 @@ export default function App() {
           }}
           onOpenCalculator={() => setIsCalculatorModalOpen(true)}
           onOpenWallet={() => setIsWalletModalOpen(true)}
+          onOpenTrends={() => setCurrentTab('trends')}
+          onOpenInvest={() => setCurrentTab('invest')}
         />
       )}
 
@@ -501,12 +724,87 @@ export default function App() {
             onOpenAdminAddVillage={() => setIsAdminAddVillageOpen(true)}
             onOpenIdCardModal={() => setIsIdCardModalOpen(true)}
           />
+        ) : currentTab === 'trends' ? (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-stone-200">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setCurrentTab('catalog')}
+                  className="px-3 py-1.5 rounded-xl bg-white border border-stone-300 text-stone-700 hover:text-stone-900 hover:border-amber-500 text-xs font-bold cursor-pointer shadow-xs transition-colors"
+                >
+                  ← العودة لسوق الحسابات
+                </button>
+                <div>
+                  <h2 className="text-xl font-bold text-stone-900 tracking-tight flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5 text-amber-600" />
+                    <span>مؤشر وتطور أسعار حسابات كلاش أوف كلانس (Recharts)</span>
+                  </h2>
+                  <p className="text-xs text-stone-500">
+                    رصد وتحليل بياني لحركة الأسعار والطلب خلال الـ 30 يوماً الماضية لمساعدتك في اتخاذ قرار الشراء
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-amber-900 font-bold bg-amber-100/80 px-3 py-1.5 rounded-xl border border-amber-300 shadow-xs">
+                  📊 مؤشر سوق Al-Qimma المعتمد
+                </span>
+              </div>
+            </div>
+
+            <MarketTrendsView
+              onSelectTownHallFilter={(th) => {
+                setSelectedTHFilter(th);
+                setCurrentTab('catalog');
+              }}
+              onOpenCalculator={() => setIsCalculatorModalOpen(true)}
+            />
+          </div>
+        ) : currentTab === 'invest' ? (
+          <div className="space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-stone-200">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => setCurrentTab('catalog')}
+                  className="px-3 py-1.5 rounded-xl bg-white border border-stone-300 text-stone-700 hover:text-stone-900 hover:border-amber-500 text-xs font-bold cursor-pointer shadow-xs transition-colors"
+                >
+                  ← العودة لسوق الحسابات
+                </button>
+                <div>
+                  <h2 className="text-xl font-bold text-stone-900 tracking-tight flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-amber-600" />
+                    <span>صندوق استثمار وأسهم Al-Qimma Clash المعتمد 🏛️</span>
+                  </h2>
+                  <p className="text-xs text-stone-500">
+                    اكتتب في أسهم سيولة المتجر ومزادات النخبة واحصل على توزيعات أرباح دورية حقيقية
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-emerald-900 font-bold bg-emerald-100/90 px-3 py-1.5 rounded-xl border border-emerald-300 shadow-xs flex items-center gap-1.5">
+                  <ShieldCheck className="w-4 h-4 text-emerald-700" />
+                  <span>تسييل فوري 100% وعوائد وساطة</span>
+                </span>
+              </div>
+            </div>
+
+            <InvestmentSharesView
+              shares={investmentShares}
+              userHoldings={userHoldings}
+              transactions={shareTransactions}
+              walletBalance={walletBalance}
+              userCard={userCard}
+              onBuyShares={handleBuyShares}
+              onSellShares={handleSellShares}
+              onClaimDividends={handleClaimDividends}
+              onOpenRechargeModal={() => setIsIdCardModalOpen(true)}
+            />
+          </div>
         ) : (
           <>
             {/* Controls Bar: Filters, Tabs & Sorting */}
             <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 pb-6 mb-6 border-b border-stone-200">
               {/* Segmented Controls for Tabs */}
-              <div className="flex items-center gap-1.5 p-1 bg-stone-100 border border-stone-200 rounded-xl shrink-0">
+              <div className="flex flex-wrap items-center gap-1.5 p-1 bg-stone-100 border border-stone-200 rounded-xl shrink-0">
                 <button
                   onClick={() => setCurrentTab('catalog')}
                   className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors cursor-pointer ${
@@ -529,6 +827,34 @@ export default function App() {
                   <span>المزادات الحية</span>
                   <span className="px-1.5 py-0.2 rounded-full bg-rose-500 text-white text-[10px] font-mono font-bold">
                     {auctions.filter((a) => a.status === 'active').length}
+                  </span>
+                </button>
+                <button
+                  onClick={() => setCurrentTab('trends')}
+                  className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                    currentTab === 'trends'
+                      ? 'bg-white text-stone-900 font-bold shadow-xs'
+                      : 'text-stone-500 hover:text-stone-900'
+                  }`}
+                >
+                  <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
+                  <span>مؤشر الأسعار 📈</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-amber-500/10 text-amber-800 text-[10px] font-bold">
+                    30 يوم
+                  </span>
+                </button>
+                <button
+                  onClick={() => setCurrentTab('invest')}
+                  className={`px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-colors cursor-pointer flex items-center gap-1.5 ${
+                    currentTab === 'invest'
+                      ? 'bg-white text-stone-900 font-bold shadow-xs'
+                      : 'text-stone-500 hover:text-stone-900'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5 text-amber-600" />
+                  <span>الاستثمار والأسهم</span>
+                  <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-800 text-[10px] font-bold">
+                    أرباح
                   </span>
                 </button>
                 <button
@@ -771,7 +1097,11 @@ export default function App() {
       <ValuationCalculatorModal
         isOpen={isCalculatorModalOpen}
         onClose={() => setIsCalculatorModalOpen(false)}
-        onApplyValuationToSell={() => {}}
+        adminWhatsApp={adminWhatsApp}
+        isAdminUnlocked={isAdminUnlocked}
+        onApplyValuationToSell={(coins, th) => {
+          setIsAdminAddVillageOpen(true);
+        }}
       />
 
       <CompareModal
@@ -821,6 +1151,7 @@ export default function App() {
           }
         }}
         onSwitchCard={handleSwitchCard}
+        onUpdateUserCard={handleUpdateUserCard}
       />
 
       <TagVerifierModal
@@ -847,6 +1178,17 @@ export default function App() {
         currentBalance={walletBalance}
         onAddCoinsToCurrentAccount={handleAdminAddCoins}
         onOpenAddVillageModal={() => setIsAdminAddVillageOpen(true)}
+      />
+
+      {/* Market Price Trends & Recharts Analytics Modal */}
+      <MarketTrendsModal
+        isOpen={isTrendsModalOpen}
+        onClose={() => setIsTrendsModalOpen(false)}
+        onSelectTownHallFilter={(th) => {
+          setSelectedTHFilter(th);
+          setCurrentTab('catalog');
+        }}
+        onOpenCalculator={() => setIsCalculatorModalOpen(true)}
       />
     </div>
   );

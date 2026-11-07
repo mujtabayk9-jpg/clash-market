@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Sparkles, Coins, CreditCard, ShieldAlert } from 'lucide-react';
+import { Shield, Sparkles, Coins, CreditCard, ShieldAlert, TrendingUp, Building2 } from 'lucide-react';
 import { UserDigitalCard } from '../types/clash';
 
 interface NavbarProps {
@@ -18,6 +18,7 @@ interface NavbarProps {
   onOpenBaseLayouts: () => void;
   onOpenMyOrders: () => void;
   onOpenIdCardModal: () => void;
+  onOpenTrendsModal?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -34,6 +35,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenBaseLayouts,
   onOpenMyOrders,
   onOpenIdCardModal,
+  onOpenTrendsModal,
 }) => {
   return (
     <header className="sticky top-0 z-40 bg-[#faf8f5]/90 backdrop-blur-md border-b border-stone-200/90">
@@ -79,6 +81,27 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="px-1.5 py-0.5 rounded-full bg-rose-500/10 text-rose-600 border border-rose-500/20 text-[10px] font-bold flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-ping" />
                 <span>مباشر</span>
+              </span>
+            </button>
+            <button
+              onClick={() => setCurrentTab('trends')}
+              className={`hover:text-amber-700 transition-colors whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-1.5 pb-0.5 ${
+                currentTab === 'trends' ? 'text-amber-700 font-semibold border-b-2 border-amber-600' : ''
+              }`}
+            >
+              <TrendingUp className="w-3.5 h-3.5 text-amber-600" />
+              <span>مؤشر الأسعار 📈</span>
+            </button>
+            <button
+              onClick={() => setCurrentTab('invest')}
+              className={`hover:text-amber-700 transition-colors whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-1.5 pb-0.5 ${
+                currentTab === 'invest' ? 'text-amber-700 font-semibold border-b-2 border-amber-600' : ''
+              }`}
+            >
+              <Building2 className="w-3.5 h-3.5 text-amber-600" />
+              <span>الاستثمار والأسهم</span>
+              <span className="px-1.5 py-0.2 rounded-full bg-emerald-500/10 text-emerald-700 border border-emerald-500/20 text-[10px] font-bold">
+                أرباح
               </span>
             </button>
             <button

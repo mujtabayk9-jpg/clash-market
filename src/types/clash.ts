@@ -24,6 +24,12 @@ export interface UserDigitalCard {
   securityCode: string;
   avatarSeed: number;
   qrCodeMock: string;
+  warriorTitle?: string;
+  leagueEmblem?: string;
+  townHallLevel?: number;
+  playerTag?: string;
+  clanName?: string;
+  cardTheme?: 'royal_gold' | 'dark_obsidian' | 'legend_emerald' | 'crimson_flame';
 }
 
 export interface HeroStats {
@@ -114,4 +120,41 @@ export interface AuctionListing {
   status: 'active' | 'ended';
   buyoutCoins?: number;
 }
+
+export interface InvestmentShare {
+  id: string;
+  title: string;
+  symbol: string;
+  badge: string;
+  description: string;
+  sharePriceCoins: number;
+  previousPriceCoins: number;
+  dividendRatePercent: number; // e.g., 7.5%
+  dividendPeriodLabel: string; // e.g., "أرباح أسبوعية"
+  availableShares: number;
+  totalShares: number;
+  backedBy: string;
+  riskRating: 'آمن وساطة 100%' | 'نمو متوازن' | 'أرباح مرتفعة';
+  priceHistory: Array<{ date: string; price: number; volume: number }>;
+}
+
+export interface UserShareHolding {
+  shareId: string;
+  sharesCount: number;
+  averageBuyPrice: number;
+  totalInvested: number;
+  unclaimedDividends: number;
+  lastClaimTimestamp: string;
+}
+
+export interface ShareOrderTransaction {
+  id: string;
+  type: 'buy' | 'sell' | 'dividend_claim';
+  shareId: string;
+  shareTitle: string;
+  shares: number;
+  amountCoins: number;
+  timestamp: string;
+}
+
 

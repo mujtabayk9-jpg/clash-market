@@ -17,7 +17,8 @@ import {
   ArrowRight,
   ArrowLeftRight,
   Send,
-  AlertCircle
+  AlertCircle,
+  Share2
 } from 'lucide-react';
 import { UserDigitalCard, AdminRechargeTransaction } from '../types/clash';
 import { 
@@ -29,7 +30,9 @@ import {
   transferCoins,
   TransferResult,
   getTransferLogs,
-  TransferRecord
+  TransferRecord,
+  parseCoinAmount,
+  convertArabicDigits
 } from '../utils/balanceManager';
 
 interface AdminRechargeModalProps {
@@ -109,7 +112,7 @@ export const AdminRechargeModal: React.FC<AdminRechargeModalProps> = ({
 
   if (!isOpen) return null;
 
-  const resolvedAmount = customAmount ? parseInt(customAmount, 10) || 0 : selectedPreset;
+  const resolvedAmount = customAmount ? parseCoinAmount(customAmount) : selectedPreset;
 
   // Active target calculations
   const isCurrent = targetType === 'current';
@@ -151,7 +154,7 @@ export const AdminRechargeModal: React.FC<AdminRechargeModalProps> = ({
     // 1. Central registry update
     const result = addCoinsToCard(targetCard, resolvedAmount, targetName);
 
-    // 2. If it targets the active current user, also update live state directly
+    // 2. If it targets the active current user, notify parent
     if (isTargetingActiveUser) {
       onAddCoinsToCurrentAccount(resolvedAmount, `شحن إداري معتمد (${methodLabel})`);
     }
@@ -180,7 +183,7 @@ export const AdminRechargeModal: React.FC<AdminRechargeModalProps> = ({
     setKnownClients(getKnownClients());
   };
 
-  const resolvedTransferAmount = transferCustomAmount ? parseInt(transferCustomAmount, 10) || 0 : transferPreset;
+  const resolvedTransferAmount = transferCustomAmount ? parseCoinAmount(transferCustomAmount) : transferPreset;
 
   const effectiveSourceCardId = transferSourceType === 'current'
     ? currentUserCard.cardId
@@ -680,21 +683,34 @@ export const AdminRechargeModal: React.FC<AdminRechargeModalProps> = ({
                   </div>
 
                   <div className="flex items-center justify-between pt-1 border-t border-emerald-200/60 text-[11px] text-stone-500">
-                    <span>رقم السند: {transferSuccess.txnId}</span>
+                    <span>رقم السند: <strong className="font-mono text-stone-900">{transferSuccess.txnId}</strong></span>
                     <span>{transferSuccess.timestamp}</span>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTransferSuccess(null);
-                    setTransferError(null);
-                  }}
-                  className="px-6 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-bold text-xs cursor-pointer shadow-xs transition-colors"
-                >
-                  إجراء تحويل آخر
-                </button>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2">
+                  <a
+                    href={`https://wa.me/?text=${encodeURIComponent(
+                      `🧾 إشعار تحويل عملات معتمد من إدارة متجر Al-Qimma Clash\n───────────────────\nالمبلغ: ${transferSuccess.amount.toLocaleString()} عملة\nمن الحساب: ${transferSuccess.fromCardId}\nإلى الحساب: ${transferSuccess.toCardId}\nرقم السند: ${transferSuccess.txnId}\nالتاريخ: ${transferSuccess.timestamp}\n───────────────────\nالمتجر الرسمي المعتمد: Al-Qimma Clash`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>مشاركة الإيصال عبر الواتساب</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTransferSuccess(null);
+                      setTransferError(null);
+                    }}
+                    className="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-bold text-xs cursor-pointer shadow-xs transition-colors"
+                  >
+                    إجراء تحويل آخر
+                  </button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4 animate-in fade-in duration-200 text-right">

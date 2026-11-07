@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   X, 
   Coins, 
@@ -12,16 +12,26 @@ import {
   AlertCircle, 
   Lock,
   ArrowLeftRight,
-  Send
+  Send,
+  History,
+  Share2,
+  ArrowUpRight,
+  ArrowDownLeft,
+  UserCheck
 } from 'lucide-react';
 import { UserDigitalCard } from '../types/clash';
 import { 
   transferCoins, 
   TransferResult, 
+  TransferRecord,
   getKnownClients, 
   KnownClient,
   normalizeCardId,
-  getCardBalance
+  getCardBalance,
+  getKnownClientByCardId,
+  getTransferLogsForCard,
+  parseCoinAmount,
+  convertArabicDigits
 } from '../utils/balanceManager';
 
 interface WalletModalProps {
@@ -41,9 +51,10 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   adminWhatsApp = '9647708924110',
   onOpenIdCardModal,
 }) => {
-  const [activeTab, setActiveTab] = useState<'recharge' | 'transfer'>('recharge');
+  const [activeTab, setActiveTab] = useState<'recharge' | 'transfer' | 'history'>('recharge');
   const [selectedCoins, setSelectedCoins] = useState<number>(5000);
   const [copiedCard, setCopiedCard] = useState(false);
+  const [copiedTxnId, setCopiedTxnId] = useState(false);
 
   // Transfer state
   const [recipientCardId, setRecipientCardId] = useState('');
@@ -52,14 +63,14 @@ export const WalletModal: React.FC<WalletModalProps> = ({
   const [transferResult, setTransferResult] = useState<TransferResult | null>(null);
   const [transferError, setTransferError] = useState<string | null>(null);
   const [knownClients, setKnownClients] = useState<KnownClient[]>([]);
+  const [myTransferLogs, setMyTransferLogs] = useState<TransferRecord[]>([]);
 
   useEffect(() => {
     if (isOpen) {
       setKnownClients(getKnownClients());
+      setMyTransferLogs(getTransferLogsForCard(userCard.cardId));
     }
-  }, [isOpen]);
-
-  if (!isOpen) return null;
+  }, [isOpen, userCard.cardId, walletBalance]);
 
   const cleanPhone = adminWhatsApp.replace(/[^0-9]/g, '');
 
@@ -83,6 +94,12 @@ export const WalletModal: React.FC<WalletModalProps> = ({
     setTimeout(() => setCopiedCard(false), 2000);
   };
 
+  const copyTxn = (id: string) => {
+    navigator.clipboard.writeText(id);
+    setCopiedTxnId(true);
+    setTimeout(() => setCopiedTxnId(false), 2000);
+  };
+
   const COIN_TIERS: { coins: number; label: string; desc: string; popular?: boolean }[] = [
     { coins: 1000, label: '1,000 عملة', desc: 'مناسبة لحسابات التاون المتوسطة' },
     { coins: 2500, label: '2,500 عملة', desc: 'باقة ممتازة لتاون 14 و15', popular: true },
@@ -91,16 +108,27 @@ export const WalletModal: React.FC<WalletModalProps> = ({
     { coins: 20000, label: '20,000 عملة', desc: 'باقة كبار الشخصيات والكلانات' },
   ];
 
-  const parsedTransferAmount = parseInt(transferAmount, 10) || 0;
+  const parsedTransferAmount = parseCoinAmount(transferAmount);
   const normRecipient = normalizeCardId(recipientCardId);
+  const recipientClient = useMemo(() => {
+    if (!normRecipient) return undefined;
+    return getKnownClientByCardId(normRecipient);
+  }, [normRecipient, knownClients]);
+
   const recipientLiveBalance = normRecipient ? getCardBalance(normRecipient) : 0;
+  const remainingAfterTransfer = Math.max(0, walletBalance - parsedTransferAmount);
+  const canSubmitTransfer = 
+    Boolean(normRecipient) && 
+    normRecipient !== normalizeCardId(userCard.cardId) && 
+    parsedTransferAmount > 0 && 
+    walletBalance >= parsedTransferAmount;
 
   const handleExecuteTransfer = (e: React.FormEvent) => {
     e.preventDefault();
     setTransferError(null);
 
     if (!normRecipient) {
-      setTransferError('يرجى كتابة رقم بطاقة المستلم (مثال: CLC-1234-5678)');
+      setTransferError('يرجى كتابة رقم بطاقة المستلم بشكل صحيح (مثال: CLC-1234-5678)');
       return;
     }
 
@@ -110,7 +138,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
     }
 
     if (parsedTransferAmount <= 0) {
-      setTransferError('يرجى إدخال عدد عملات صحيح للتحويل.');
+      setTransferError('يرجى إدخال عدد عملات صحيح أكبر من صفر للتحويل.');
       return;
     }
 
@@ -123,64 +151,93 @@ export const WalletModal: React.FC<WalletModalProps> = ({
       userCard.cardId,
       normRecipient,
       parsedTransferAmount,
-      transferNote.trim() || `تحويل من ${userCard.memberName}`
+      transferNote.trim() || `تحويل مباشر من ${userCard.memberName}`
     );
 
     if (res.success) {
       setTransferResult(res);
       setKnownClients(getKnownClients());
+      setMyTransferLogs(getTransferLogsForCard(userCard.cardId));
     } else {
       setTransferError(res.message);
     }
   };
 
+  const getShareReceiptWhatsappUrl = (res: TransferResult) => {
+    const text = `🧾 إشعار تحويل عملات رسمي من متجر Al-Qimma Clash
+───────────────────
+⚡ تم تحويل ${res.amount.toLocaleString()} عملة بنجاح!
+👤 من: ${res.fromMemberName || userCard.memberName} (${res.fromCardId})
+🎯 إلى: ${res.toMemberName || res.toCardId} (${res.toCardId})
+📋 رقم السند: ${res.txnId}
+📅 التاريخ: ${res.timestamp}
+📝 ملاحظة: ${res.note || 'تحويل مباشر'}
+───────────────────
+المتجر الرسمي المعتمد: Al-Qimma Clash`;
+    return `https://wa.me/?text=${encodeURIComponent(text)}`;
+  };
+
+  if (!isOpen) return null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/60 backdrop-blur-sm overflow-y-auto">
-      <div className="relative w-full max-w-lg bg-[#faf8f5] border border-stone-200 rounded-2xl shadow-2xl overflow-hidden my-8 max-h-[90vh] flex flex-col">
+      <div className="relative w-full max-w-lg bg-[#faf8f5] border border-stone-200 rounded-2xl shadow-2xl overflow-hidden my-8 max-h-[92vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-stone-200 bg-white sticky top-0 z-10">
           <div className="flex items-center gap-2">
-            <div className="p-1.5 rounded-lg bg-amber-100 border border-amber-300 text-amber-700">
+            <div className="p-2 rounded-xl bg-amber-100 border border-amber-300 text-amber-700 shadow-xs">
               <Coins className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-base font-bold text-stone-900">محفظة العملات الخاصة بالتطبيق</h3>
-              <span className="text-[11px] text-stone-500">الرصيد المعتمد لشراء الحسابات وتحويل العملات</span>
+              <h3 className="text-base font-bold text-stone-900">محفظة العملات المعتمدة (Al-Qimma Clash)</h3>
+              <span className="text-[11px] text-stone-500">الرصيد المتاح لشراء القرى، المزايدات، والتحويل المباشر</span>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex border-b border-stone-200 bg-stone-100/70 px-6 pt-2">
+        <div className="grid grid-cols-3 border-b border-stone-200 bg-stone-100/70 px-4 pt-2 text-center text-xs sm:text-sm">
           <button
             type="button"
             onClick={() => { setActiveTab('recharge'); setTransferResult(null); setTransferError(null); }}
-            className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`py-2.5 font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === 'recharge'
-                ? 'border-amber-600 text-stone-900 bg-white rounded-t-lg font-black'
+                ? 'border-amber-600 text-stone-950 bg-white rounded-t-xl font-black shadow-xs'
                 : 'border-transparent text-stone-500 hover:text-stone-800'
             }`}
           >
             <Coins className="w-4 h-4 text-amber-600" />
-            <span>طلب شحن رصيد</span>
+            <span>طلب شحن</span>
           </button>
           <button
             type="button"
             onClick={() => { setActiveTab('transfer'); setTransferResult(null); setTransferError(null); }}
-            className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`py-2.5 font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               activeTab === 'transfer'
-                ? 'border-amber-600 text-stone-900 bg-white rounded-t-lg font-black'
+                ? 'border-amber-600 text-stone-950 bg-white rounded-t-xl font-black shadow-xs'
                 : 'border-transparent text-stone-500 hover:text-stone-800'
             }`}
           >
             <ArrowLeftRight className="w-4 h-4 text-amber-700" />
-            <span>تحويل عملات لحساب آخر</span>
+            <span>تحويل عملات</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => { setActiveTab('history'); setMyTransferLogs(getTransferLogsForCard(userCard.cardId)); }}
+            className={`py-2.5 font-bold border-b-2 transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              activeTab === 'history'
+                ? 'border-amber-600 text-stone-950 bg-white rounded-t-xl font-black shadow-xs'
+                : 'border-transparent text-stone-500 hover:text-stone-800'
+            }`}
+          >
+            <History className="w-4 h-4 text-amber-700" />
+            <span>السجل ({myTransferLogs.length})</span>
           </button>
         </div>
 
@@ -188,20 +245,22 @@ export const WalletModal: React.FC<WalletModalProps> = ({
         <div className="p-6 overflow-y-auto space-y-5 text-right">
           {/* Current Balance Banner */}
           <div className="p-5 bg-gradient-to-br from-amber-500/10 via-amber-50/60 to-orange-500/10 border border-amber-300/80 rounded-2xl text-center space-y-1 shadow-xs">
-            <span className="text-xs font-semibold text-stone-600 block">رصيد محفظتك الحالي:</span>
-            <div className="flex items-baseline justify-center gap-2 py-1">
-              <Coins className="w-6 h-6 text-amber-600 self-center" />
-              <span className="text-4xl sm:text-5xl font-black text-amber-900 font-mono tabular-nums">
+            <span className="text-xs font-bold text-amber-800 uppercase tracking-wider block">
+              رصيدك الحالي المتاح:
+            </span>
+            <div className="flex items-center justify-center gap-2">
+              <Coins className="w-7 h-7 text-amber-600" />
+              <span className="text-4xl sm:text-5xl font-black text-amber-950 font-mono tabular-nums">
                 {walletBalance.toLocaleString()}
               </span>
               <span className="text-base font-bold text-stone-800">عملة</span>
             </div>
-            <p className="text-xs text-stone-500">
-              بطاقتك: <strong className="font-mono text-stone-900">{userCard.cardId}</strong> ({userCard.memberName})
+            <p className="text-xs text-stone-600">
+              رقم بطاقتك: <strong className="font-mono text-stone-900 bg-amber-100/70 px-2 py-0.5 rounded border border-amber-300">{userCard.cardId}</strong> ({userCard.memberName})
             </p>
           </div>
 
-          {activeTab === 'recharge' ? (
+          {activeTab === 'recharge' && (
             /* Recharge Tab */
             <>
               {/* User Digital Card Quick Reference */}
@@ -238,14 +297,14 @@ export const WalletModal: React.FC<WalletModalProps> = ({
               <div className="p-4 bg-amber-50/80 border border-amber-300 rounded-xl space-y-2 text-xs text-amber-950">
                 <div className="flex items-center gap-2 font-bold text-amber-900 text-sm">
                   <Lock className="w-4 h-4 text-amber-700 shrink-0" />
-                  <span>نظام الشحن حصري عبر إدارة الموقع</span>
+                  <span>الشحن الآمن والمباشر عبر إدارة المتجر</span>
                 </div>
                 <p className="leading-relaxed text-stone-700">
-                  للحفاظ على أمان المعاملات، يتم الشحن حصراً ومباشرةً من قِبل إدارة الموقع بإضافة العملات إلى بطاقتك التعريفية فور التواصل عبر الواتساب.
+                  للحفاظ على أمان أموالك وحساباتك، يتم الشحن حصراً من قِبل إدارة المتجر بإيداع العملات مباشرة إلى رقم بطاقتك الدائمة فور التواصل معنا عبر الواتساب.
                 </p>
               </div>
 
-              {/* Select Coin Package for WhatsApp message */}
+              {/* Select Coin Package */}
               <div>
                 <label className="block text-xs font-bold text-stone-800 mb-2">
                   اختر كمية العملات التي ترغب بشحنها:
@@ -278,51 +337,56 @@ export const WalletModal: React.FC<WalletModalProps> = ({
 
               {/* Direct WhatsApp Call-to-Action */}
               <div className="p-4 bg-emerald-50 border border-emerald-300 rounded-xl space-y-3 shadow-xs">
-                <div className="flex items-center gap-2 text-emerald-900 font-bold text-xs">
-                  <MessageCircle className="w-4 h-4 text-emerald-700" />
-                  <span>إرسال طلب الشحن المباشر إلى المشرف عبر الواتساب</span>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-stone-600 font-medium">رقم المشرف المسؤول على الواتساب:</span>
+                  <span className="font-mono font-bold text-emerald-800" dir="ltr">+{cleanPhone}</span>
                 </div>
-                <p className="text-[11px] text-stone-600 leading-relaxed">
-                  عند الضغط، سيتم فتح الواتساب تلقائياً مع رقم بطاقتك التعريفية <strong className="font-mono text-stone-900">({userCard.cardId})</strong> وكمية العملات المختارة ليقوم المشرف بشحن حسابك فوراً.
-                </p>
                 <a
                   href={whatsappUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-3 px-4 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm text-sm cursor-pointer"
+                  className="w-full py-3.5 px-4 rounded-xl font-bold text-white bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-sm shadow-emerald-600/30 text-sm cursor-pointer"
                 >
                   <MessageCircle className="w-5 h-5 fill-white" />
-                  <span>مراسلة المشرف بالواتساب لشحن ({selectedCoins.toLocaleString()} عملة)</span>
+                  <span>طلب شحن ({selectedCoins.toLocaleString()} عملة) عبر الواتساب</span>
                 </a>
               </div>
             </>
-          ) : (
+          )}
+
+          {activeTab === 'transfer' && (
             /* Transfer Tab */
             transferResult ? (
-              <div className="text-center py-6 animate-in fade-in duration-300 space-y-4">
+              <div className="text-center py-4 animate-in fade-in duration-300 space-y-4">
                 <div className="w-16 h-16 rounded-full bg-emerald-100 border border-emerald-300 flex items-center justify-center mx-auto text-emerald-600 shadow-sm">
                   <CheckCircle2 className="w-9 h-9" />
                 </div>
                 <div>
                   <h4 className="text-lg font-black text-stone-900">تم تحويل العملات بنجاح!</h4>
-                  <p className="text-xs text-stone-500 mt-1">
-                    تم إرسال العملات فوراً إلى الحساب المطلوب وخصمها من محفظتك.
+                  <p className="text-xs text-stone-500 mt-0.5">
+                    تم إيداع العملات فورياً في بطاقة المستلم وخصمها من محفظتك.
                   </p>
                 </div>
 
-                <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl max-w-md mx-auto text-xs space-y-2.5 text-right">
-                  <div className="flex items-center justify-between pb-2 border-b border-emerald-200/60">
-                    <span className="text-stone-600">المبلغ المحول:</span>
-                    <span className="font-mono font-black text-emerald-800 text-base">
+                {/* Receipt Card */}
+                <div className="p-4 bg-gradient-to-br from-emerald-50 to-white border-2 border-emerald-300 rounded-2xl max-w-md mx-auto text-xs space-y-2.5 text-right shadow-sm">
+                  <div className="flex items-center justify-between pb-2 border-b border-emerald-200">
+                    <span className="text-stone-600 font-medium">المبلغ المحول:</span>
+                    <span className="font-mono font-black text-emerald-800 text-lg">
                       {transferResult.amount.toLocaleString()} عملة
                     </span>
                   </div>
 
                   <div className="flex items-center justify-between">
                     <span className="text-stone-600">إلى الحساب:</span>
-                    <span className="font-mono font-bold text-stone-900">
-                      {transferResult.toCardId}
-                    </span>
+                    <div className="text-left font-mono font-bold text-stone-900">
+                      <span>{transferResult.toCardId}</span>
+                      {transferResult.toMemberName && (
+                        <span className="text-[10px] text-stone-500 mr-1.5 font-sans">
+                          ({transferResult.toMemberName})
+                        </span>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex items-center justify-between">
@@ -332,60 +396,90 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                     </span>
                   </div>
 
-                  <div className="flex items-center justify-between pt-1 border-t border-emerald-200/60 text-[11px] text-stone-500">
-                    <span>رقم السند: {transferResult.txnId}</span>
+                  <div className="flex items-center justify-between pt-2 border-t border-emerald-200 text-[11px] text-stone-500">
+                    <div className="flex items-center gap-1.5">
+                      <span>رقم السند:</span>
+                      <strong className="font-mono text-stone-900">{transferResult.txnId}</strong>
+                      <button
+                        type="button"
+                        onClick={() => copyTxn(transferResult.txnId)}
+                        className="text-stone-400 hover:text-stone-800 cursor-pointer p-0.5"
+                        title="نسخ رقم السند"
+                      >
+                        {copiedTxnId ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                      </button>
+                    </div>
                     <span>{transferResult.timestamp}</span>
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    setTransferResult(null);
-                    setTransferError(null);
-                    setTransferAmount('1000');
-                    setRecipientCardId('');
-                  }}
-                  className="px-6 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-bold text-xs cursor-pointer shadow-xs transition-colors"
-                >
-                  إجراء تحويل آخر
-                </button>
+                <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-2">
+                  <a
+                    href={getShareReceiptWhatsappUrl(transferResult)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+                  >
+                    <Share2 className="w-3.5 h-3.5" />
+                    <span>مشاركة الإيصال عبر الواتساب</span>
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTransferResult(null);
+                      setTransferError(null);
+                      setTransferAmount('1000');
+                      setRecipientCardId('');
+                    }}
+                    className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-amber-300 font-bold text-xs cursor-pointer shadow-xs transition-colors"
+                  >
+                    إجراء تحويل آخر
+                  </button>
+                </div>
               </div>
             ) : (
               <form onSubmit={handleExecuteTransfer} className="space-y-4 animate-in fade-in duration-200">
                 <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-950 flex items-start gap-2">
                   <ArrowLeftRight className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                   <p className="leading-relaxed">
-                    يمكنك تحويل العملات من رصيد محفظتك إلى أي حساب آخر مسجل برقم البطاقة التعريفية مباشرة وفورياً.
+                    <strong>تحويل العملات الفوري:</strong> اكتب أو اختر رقم بطاقة المستلم وسيتم تحويل العملات مباشرة وتحديث رصيد كلا الحسابين فوراً.
                   </p>
                 </div>
 
                 {/* Recipient Input */}
-                <div className="p-3.5 bg-white border border-stone-200 rounded-xl space-y-2 shadow-xs">
-                  <label className="block text-xs font-bold text-stone-800">
-                    1. رقم بطاقة المستلم:
-                  </label>
+                <div className="p-3.5 bg-white border border-stone-200 rounded-xl space-y-2.5 shadow-xs">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-stone-800">
+                      1. رقم بطاقة المستلم (Card ID):
+                    </label>
+                    {recipientClient && (
+                      <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
+                        <UserCheck className="w-3 h-3" />
+                        <span>{recipientClient.memberName}</span>
+                      </span>
+                    )}
+                  </div>
 
                   {/* Fast selection from known cards */}
-                  {knownClients.filter(c => c.cardId !== userCard.cardId).length > 0 && (
+                  {knownClients.filter(c => normalizeCardId(c.cardId) !== normalizeCardId(userCard.cardId)).length > 0 && (
                     <div className="space-y-1">
-                      <span className="text-[11px] text-stone-500">البطاقات المتاحة:</span>
-                      <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto p-1 bg-stone-50 rounded-lg border border-stone-100">
+                      <span className="text-[11px] text-stone-500">اختر بسرعة من بطاقات العملاء:</span>
+                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1.5 bg-stone-50 rounded-lg border border-stone-100">
                         {knownClients
-                          .filter((c) => c.cardId !== userCard.cardId)
+                          .filter((c) => normalizeCardId(c.cardId) !== normalizeCardId(userCard.cardId))
                           .map((client) => (
                             <button
                               key={client.cardId}
                               type="button"
                               onClick={() => setRecipientCardId(client.cardId)}
-                              className={`px-2 py-1 rounded text-[11px] font-mono cursor-pointer border transition-colors ${
-                                normRecipient === client.cardId
-                                  ? 'bg-amber-500 text-stone-950 border-amber-600 font-bold'
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-mono cursor-pointer border transition-colors flex items-center gap-1 ${
+                                normRecipient === normalizeCardId(client.cardId)
+                                  ? 'bg-amber-500 text-stone-950 border-amber-600 font-bold shadow-xs'
                                   : 'bg-white text-stone-700 border-stone-200 hover:bg-stone-100'
                               }`}
                             >
                               <span>{client.cardId}</span>
-                              <span className="text-[9px] opacity-75 mr-1">({client.memberName})</span>
+                              <span className="text-[10px] opacity-75">({client.memberName})</span>
                             </button>
                           ))}
                       </div>
@@ -395,30 +489,56 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   <input
                     type="text"
                     required
-                    placeholder="اكتب رقم بطاقة المستلم (مثال: CLC-8924-1102)"
+                    placeholder="مثال: CLC-8924-1102"
                     value={recipientCardId}
-                    onChange={(e) => setRecipientCardId(e.target.value.toUpperCase())}
+                    onChange={(e) => setRecipientCardId(convertArabicDigits(e.target.value).toUpperCase())}
                     className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs font-mono font-bold text-stone-900 outline-none focus:border-amber-500 text-left"
+                    dir="ltr"
                   />
+
                   {normRecipient && (
-                    <div className="text-[11px] text-stone-500 flex items-center justify-between">
+                    <div className="text-[11px] text-stone-600 flex items-center justify-between pt-1 border-t border-stone-100">
                       <span>رصيد المستلم الحالي:</span>
-                      <span className="font-mono font-bold text-stone-800">{recipientLiveBalance.toLocaleString()} عملة</span>
+                      <span className="font-mono font-bold text-stone-900">
+                        {recipientLiveBalance.toLocaleString()} عملة
+                      </span>
                     </div>
                   )}
                 </div>
 
                 {/* Amount to send */}
-                <div className="p-3.5 bg-white border border-stone-200 rounded-xl space-y-2 shadow-xs">
+                <div className="p-3.5 bg-white border border-stone-200 rounded-xl space-y-2.5 shadow-xs">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-stone-800">
-                      2. عدد العملات المراد إرسالها:
+                      2. كمية العملات المراد إرسالها:
                     </label>
                     <span className="text-xs font-mono font-black text-amber-800">
                       {parsedTransferAmount.toLocaleString()} عملة
                     </span>
                   </div>
 
+                  {/* Quick percentage buttons */}
+                  {walletBalance > 0 && (
+                    <div className="grid grid-cols-4 gap-1.5">
+                      {[
+                        { label: '25%', value: Math.floor(walletBalance * 0.25) },
+                        { label: '50%', value: Math.floor(walletBalance * 0.5) },
+                        { label: '75%', value: Math.floor(walletBalance * 0.75) },
+                        { label: 'الكل (100%)', value: walletBalance },
+                      ].map((btn) => (
+                        <button
+                          key={btn.label}
+                          type="button"
+                          onClick={() => setTransferAmount(btn.value.toString())}
+                          className="py-1 px-1.5 rounded-lg text-[11px] font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 cursor-pointer transition-colors text-center"
+                        >
+                          {btn.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Preset amounts */}
                   <div className="flex flex-wrap gap-1.5">
                     {[500, 1000, 2500, 5000].map((preset) => (
                       <button
@@ -431,30 +551,28 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                             : 'bg-stone-100 hover:bg-stone-200 text-stone-800 border-stone-200'
                         }`}
                       >
-                        {preset.toLocaleString()}
+                        +{preset.toLocaleString()}
                       </button>
                     ))}
-                    {walletBalance > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => setTransferAmount(walletBalance.toString())}
-                        className="px-2.5 py-1 rounded-lg text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 cursor-pointer"
-                      >
-                        كامل رصيدي ({walletBalance.toLocaleString()})
-                      </button>
-                    )}
                   </div>
 
                   <input
-                    type="number"
-                    min={1}
-                    max={walletBalance}
+                    type="text"
                     required
-                    placeholder="أدخل كمية العملات..."
+                    placeholder="أدخل عدد العملات (مثال: 1500)..."
                     value={transferAmount}
-                    onChange={(e) => setTransferAmount(e.target.value)}
+                    onChange={(e) => setTransferAmount(convertArabicDigits(e.target.value))}
                     className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs font-mono font-bold text-stone-900 outline-none focus:border-amber-500 text-left"
+                    dir="ltr"
                   />
+
+                  {/* Remaining balance preview */}
+                  <div className="flex items-center justify-between text-[11px] text-stone-500 pt-1 border-t border-stone-100">
+                    <span>رصيدك المتبقي بعد التحويل:</span>
+                    <span className={`font-mono font-bold ${walletBalance < parsedTransferAmount ? 'text-rose-600' : 'text-amber-800'}`}>
+                      {remainingAfterTransfer.toLocaleString()} عملة
+                    </span>
+                  </div>
                 </div>
 
                 {/* Optional Note */}
@@ -464,15 +582,15 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                   </label>
                   <input
                     type="text"
-                    placeholder="مثال: دفعة لحساب كلاش"
+                    placeholder="مثال: دفعة لشراء قرية كلاش أوف كلانس"
                     value={transferNote}
                     onChange={(e) => setTransferNote(e.target.value)}
-                    className="w-full bg-white border border-stone-300 rounded-lg px-3 py-1.5 text-xs text-stone-900 outline-none focus:border-amber-500"
+                    className="w-full bg-white border border-stone-300 rounded-lg px-3 py-2 text-xs text-stone-900 outline-none focus:border-amber-500"
                   />
                 </div>
 
                 {transferError && (
-                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 font-semibold flex items-center gap-1.5">
+                  <div className="p-2.5 bg-rose-50 border border-rose-200 rounded-lg text-xs text-rose-800 font-semibold flex items-center gap-1.5 animate-in fade-in duration-200">
                     <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
                     <span>{transferError}</span>
                   </div>
@@ -480,19 +598,90 @@ export const WalletModal: React.FC<WalletModalProps> = ({
 
                 <button
                   type="submit"
-                  disabled={walletBalance < parsedTransferAmount || parsedTransferAmount <= 0 || !normRecipient}
+                  disabled={!canSubmitTransfer}
                   className="w-full py-3.5 px-4 rounded-xl font-black text-stone-950 bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 transition-all flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50 text-sm"
                 >
                   <Send className="w-4 h-4 text-stone-950" />
-                  <span>تأكيد تحويل ({parsedTransferAmount.toLocaleString()} عملة) للمستلم</span>
+                  <span>تأكيد إرسال ({parsedTransferAmount.toLocaleString()} عملة) للمستلم فوراً</span>
                 </button>
               </form>
             )
           )}
 
+          {activeTab === 'history' && (
+            /* History Tab */
+            <div className="space-y-3 animate-in fade-in duration-200">
+              <div className="flex items-center justify-between pb-2 border-b border-stone-200">
+                <span className="text-xs font-bold text-stone-800">
+                  سجل سندات وتحويلات بطاقتك ({myTransferLogs.length})
+                </span>
+                <span className="text-[11px] text-stone-500 font-mono">
+                  {userCard.cardId}
+                </span>
+              </div>
+
+              {myTransferLogs.length === 0 ? (
+                <div className="text-center py-8 bg-white border border-dashed border-stone-300 rounded-2xl p-6 text-stone-500 text-xs">
+                  <History className="w-8 h-8 mx-auto text-stone-300 mb-2" />
+                  <p className="font-bold text-stone-700">لا توجد عمليات تحويل سابقة لهذه البطاقة</p>
+                  <p className="text-[11px] text-stone-400 mt-1">
+                    عند إرسال أو استلام أي عملات ستظهر السندات وتفاصيل المعاملات هنا فوراً.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {myTransferLogs.map((log) => {
+                    const isOutgoing = normalizeCardId(log.fromCardId) === normalizeCardId(userCard.cardId);
+                    return (
+                      <div
+                        key={log.id}
+                        className="p-3 bg-white border border-stone-200 rounded-xl text-xs space-y-1.5 shadow-xs hover:border-amber-300 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            {isOutgoing ? (
+                              <span className="p-1 rounded bg-rose-100 text-rose-700 font-bold text-[10px] flex items-center gap-0.5">
+                                <ArrowUpRight className="w-3 h-3" />
+                                <span>صادر</span>
+                              </span>
+                            ) : (
+                              <span className="p-1 rounded bg-emerald-100 text-emerald-700 font-bold text-[10px] flex items-center gap-0.5">
+                                <ArrowDownLeft className="w-3 h-3" />
+                                <span>وارد</span>
+                              </span>
+                            )}
+                            <span className="font-mono font-bold text-stone-900 text-xs">
+                              {log.id}
+                            </span>
+                          </div>
+                          <span className={`font-mono font-black text-xs ${isOutgoing ? 'text-rose-700' : 'text-emerald-700'}`}>
+                            {isOutgoing ? '-' : '+'}{log.amount.toLocaleString()} عملة
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-[11px] text-stone-500">
+                          <span>
+                            {isOutgoing ? `إلى: ${log.toCardId}` : `من: ${log.fromCardId}`}
+                          </span>
+                          <span>{log.date}</span>
+                        </div>
+
+                        {log.note && (
+                          <div className="text-[11px] text-stone-600 bg-stone-50 p-1.5 rounded border border-stone-100">
+                            {log.note}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Quick link to view permanent ID passport */}
           {onOpenIdCardModal && (
-            <div className="text-center pt-1 border-t border-stone-100">
+            <div className="text-center pt-2 border-t border-stone-100">
               <button
                 type="button"
                 onClick={() => {
@@ -502,7 +691,7 @@ export const WalletModal: React.FC<WalletModalProps> = ({
                 className="text-xs text-amber-800 hover:text-amber-900 font-bold underline cursor-pointer inline-flex items-center gap-1"
               >
                 <CreditCard className="w-3.5 h-3.5" />
-                <span>عرض بطاقتي التعريفية وتفاصيل الحساب</span>
+                <span>عرض بطاقتي التعريفية وتبديل الحسابات</span>
               </button>
             </div>
           )}
@@ -511,4 +700,3 @@ export const WalletModal: React.FC<WalletModalProps> = ({
     </div>
   );
 };
-
