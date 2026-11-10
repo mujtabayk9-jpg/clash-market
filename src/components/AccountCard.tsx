@@ -2,6 +2,7 @@ import React from 'react';
 import { ShieldCheck, Heart, Swords, Eye, ShoppingCart, Gem, Trophy, Star, Coins, Images, Tag } from 'lucide-react';
 import { AccountListing } from '../types/clash';
 import { SoldSealStamp } from './SoldSealStamp';
+import { formatIQD, usdToIQD } from '../utils/currency';
 
 interface AccountCardProps {
   account: AccountListing;
@@ -24,7 +25,7 @@ export const AccountCard: React.FC<AccountCardProps> = ({
   onBuy,
   onToggleSold,
 }) => {
-  const priceInCoins = account.priceUSD * 100;
+  const priceIQD = usdToIQD(account.priceUSD);
   const totalPhotosCount = 1 + (account.secondaryImages?.length || 0);
 
   return (
@@ -215,16 +216,15 @@ export const AccountCard: React.FC<AccountCardProps> = ({
                   <span className="font-serif text-amber-700 font-extrabold text-sm">𒀱</span>
                   <span className="font-bold text-xs">مباع</span>
                   <span className="text-[11px] text-stone-400 line-through font-mono">
-                    {priceInCoins.toLocaleString()} عملة
+                    {formatIQD(priceIQD)}
                   </span>
                 </div>
               ) : (
                 <>
                   <Coins className="w-4 h-4 text-amber-600 self-center" />
                   <span className="text-2xl font-black text-amber-900 font-mono tabular-nums">
-                    {priceInCoins.toLocaleString()}
+                    {formatIQD(priceIQD)}
                   </span>
-                  <span className="text-xs font-bold text-stone-700">عملة</span>
                 </>
               )}
             </div>
